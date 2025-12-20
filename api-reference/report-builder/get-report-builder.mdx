@@ -1,0 +1,412 @@
+---
+title: "GetReportBuilder"
+api: "POST /GetReportBuilder"
+description: "Generate a custom analytics report based on specified parameters, with support for CSV and PDF export."
+---
+
+## Overview
+
+`GetReportBuilder` generates analytics reports based on configurable parameters. It supports multiple base data sources, customizable columns with grouping and aggregation, filtering, sorting, date comparisons, and export to CSV or PDF formats.
+
+## Request
+
+<ParamField body="params_v2" type="ReportParamsV2" required>
+  The report configuration parameters (recommended over legacy `params`).
+  
+  <Expandable title="ReportParamsV2 properties">
+    <ParamField body="base_data" type="BaseData" required>
+      The dataset to base the report on (e.g., `SOLD_PRODUCTS`, `CUSTOMERS`).
+    </ParamField>
+    
+    <ParamField body="data_source_range" type="TimestampRange" required>
+      The time range for the report data.
+      <Expandable title="TimestampRange properties">
+        <ParamField body="start" type="Timestamp">Start of the date range (RFC3339 format)</ParamField>
+        <ParamField body="end" type="Timestamp">End of the date range (RFC3339 format)</ParamField>
+      </Expandable>
+    </ParamField>
+    
+    <ParamField body="columns" type="Column[]" required>
+      Array of column configurations to include in the report.
+      <Expandable title="Column properties">
+        <ParamField body="group" type="GroupV2">The column type (label or metric)</ParamField>
+        <ParamField body="aggregation" type="Aggregation">Aggregation method (SUM, AVERAGE, MIN, MAX, COUNT)</ParamField>
+        <ParamField body="subgroups" type="GroupV2[]">Secondary grouping for pivot-table functionality</ParamField>
+        <ParamField body="time_format" type="GroupV2">Format for timestamp columns</ParamField>
+        <ParamField body="is_date_compared" type="boolean">Enable date comparison for this metric</ParamField>
+        <ParamField body="summary_aggregation" type="Aggregation">Aggregation to use for the summary row</ParamField>
+        <ParamField body="is_non_aggregating" type="boolean">Ignore this column when aggregating (for drill-down columns)</ParamField>
+      </Expandable>
+    </ParamField>
+    
+    <ParamField body="filters" type="Filter[]">
+      Filters to restrict the data set. Filters for different attributes are ANDed; filters for the same attribute are ORed.
+      <Expandable title="Filter properties">
+        <ParamField body="attribute" type="Filter.Attribute">The field to filter by</ParamField>
+        <ParamField body="id" type="UUID">The UUID value to filter by (for ID-based filters)</ParamField>
+        <ParamField body="enum_val" type="int32">The enum value to filter by (for enum-based filters)</ParamField>
+        <ParamField body="label" type="string">Human-readable label for the filter</ParamField>
+        <ParamField body="bool_val" type="boolean">Boolean value (for boolean filters)</ParamField>
+      </Expandable>
+    </ParamField>
+    
+    <ParamField body="sort_column_index" type="int32">
+      Column index to sort by (0-based).
+    </ParamField>
+    
+    <ParamField body="sort_order" type="int32">
+      Sort direction: `0` = no sort, `1` = descending, `2` = ascending.
+    </ParamField>
+    
+    <ParamField body="sort_column_key" type="SortColumnKey">
+      Alternative to sort_column_index, identifies column by group and subgroup values.
+    </ParamField>
+    
+    <ParamField body="unaggregated" type="boolean">
+      If true, returns raw unaggregated rows (drill-down mode).
+    </ParamField>
+    
+    <ParamField body="comparison_ranges" type="TimestampRange[]">
+      Additional time ranges for date comparison reports.
+    </ParamField>
+    
+    <ParamField body="show_date_compared_percent_change" type="boolean">
+      Include percent change columns when date comparing.
+    </ParamField>
+    
+    <ParamField body="show_date_compared_delta" type="boolean">
+      Include absolute delta columns when date comparing.
+    </ParamField>
+    
+    <ParamField body="search_queries" type="SearchQuery[]">
+      Text-based queries for filtering by name (useful for AI-driven reports).
+    </ParamField>
+    
+    <ParamField body="aggregation_predicate_filters" type="PredicateFilter[]">
+      Filters applied after aggregation (e.g., show only rows with revenue &gt; $1000).
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="to_csv" type="boolean" default="false">
+  If true, returns a URL to download the report as CSV instead of table data.
+</ParamField>
+
+<ParamField body="to_pdf" type="boolean" default="false">
+  If true, returns PDF bytes of the report.
+</ParamField>
+
+<ParamField body="saved_report_name" type="string">
+  Name to use when generating the report title (for saved reports).
+</ParamField>
+
+<RequestExample>
+```json
+{
+  "paramsV2": {
+    "baseData": "BASE_DATA_SOLD_PRODUCTS",
+    "dataSourceRange": {
+      "start": "2024-01-01T00:00:00Z",
+      "end": "2024-01-31T23:59:59Z"
+    },
+    "columns": [
+      { "group": "GROUPV2_PRODUCT" },
+      { "group": "GROUPV2_SOLD_PRODUCT_REVENUE_NET" },
+      { "group": "GROUPV2_SOLD_PRODUCT_QUANTITY_SOLD" }
+    ],
+    "sortColumnIndex": 1,
+    "sortOrder": 1
+  },
+  "toCsv": false,
+  "toPdf": false,
+  "savedReportName": ""
+}
+```
+</RequestExample>
+
+## Response
+
+<ResponseField name="report" type="Report">
+  The generated report data.
+  
+  <Expandable title="Report properties">
+    <ResponseField name="title" type="string">Report title</ResponseField>
+    <ResponseField name="subtitle" type="string">Report subtitle with date range info</ResponseField>
+    <ResponseField name="table" type="Table">
+      Tabular report data.
+      <Expandable title="Table properties">
+        <ResponseField name="headers_v2" type="Header[]">
+          Column headers with metadata including allowed aggregations and cell types.
+          <Expandable title="Header properties">
+            <ResponseField name="name" type="string">Display name of the column</ResponseField>
+            <ResponseField name="subgroup_values" type="string[]">Subgroup values for pivot columns</ResponseField>
+            <ResponseField name="original_column" type="Column">The column configuration that produced this header</ResponseField>
+            <ResponseField name="allowed_aggregations" type="Aggregation[]">Valid aggregations for this column</ResponseField>
+            <ResponseField name="cell_type" type="Cell.Type">The data type of cells in this column</ResponseField>
+            <ResponseField name="percent_change_info" type="ComparisonColumnInfo">Info for percent change columns</ResponseField>
+            <ResponseField name="delta_info" type="ComparisonColumnInfo">Info for delta columns</ResponseField>
+          </Expandable>
+        </ResponseField>
+        <ResponseField name="rows" type="Row[]">
+          Data rows, each containing typed cells.
+        </ResponseField>
+        <ResponseField name="summary" type="Row">
+          Summary row with aggregated totals.
+        </ResponseField>
+        <ResponseField name="total_rows" type="int32">
+          Total row count before any truncation.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="series" type="Series[]">
+      Chart-ready data series (for visualization).
+    </ResponseField>
+    <ResponseField name="report_builder_url" type="string">
+      URL encoding the report parameters for sharing/saving.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="compare_report" type="Report">
+  Comparison report data (when using date comparison).
+</ResponseField>
+
+<ResponseField name="csv_url" type="string">
+  URL to download the CSV file (when `to_csv` is true).
+</ResponseField>
+
+<ResponseField name="pdf_bytes" type="bytes">
+  PDF file content (when `to_pdf` is true).
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "report": {
+    "title": "Sales by Product",
+    "subtitle": "Jan 1, 2024 - Jan 31, 2024",
+    "table": {
+      "headersV2": [
+        {
+          "name": "Product",
+          "cellType": "TYPE_STRING",
+          "allowedAggregations": ["AGGREGATION_DISTINCT", "AGGREGATION_COUNT"]
+        },
+        {
+          "name": "Revenue (Net)",
+          "cellType": "TYPE_MONEY",
+          "allowedAggregations": ["AGGREGATION_SUM", "AGGREGATION_AVERAGE"]
+        },
+        {
+          "name": "Quantity Sold",
+          "cellType": "TYPE_INT",
+          "allowedAggregations": ["AGGREGATION_SUM", "AGGREGATION_AVERAGE"]
+        }
+      ],
+      "rows": [
+        {
+          "cellsV2": [
+            { "type": "TYPE_STRING", "stringVal": "Product A" },
+            { "type": "TYPE_MONEY", "moneyVal": { "cents": 125000 } },
+            { "type": "TYPE_INT", "intVal": 50 }
+          ]
+        },
+        {
+          "cellsV2": [
+            { "type": "TYPE_STRING", "stringVal": "Product B" },
+            { "type": "TYPE_MONEY", "moneyVal": { "cents": 87500 } },
+            { "type": "TYPE_INT", "intVal": 35 }
+          ]
+        }
+      ],
+      "summary": {
+        "cellsV2": [
+          { "type": "TYPE_STRING", "stringVal": "Total" },
+          { "type": "TYPE_MONEY", "moneyVal": { "cents": 212500 } },
+          { "type": "TYPE_INT", "intVal": 85 }
+        ]
+      },
+      "totalRows": 2
+    }
+  }
+}
+```
+</ResponseExample>
+
+## Column Types (GroupV2)
+
+### Label Columns (&lt; 10000)
+
+Labels define how rows are grouped. Common labels:
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 100 | `GROUPV2_DATE` | Date grouping |
+| 101 | `GROUPV2_MONTH` | Month grouping |
+| 102 | `GROUPV2_YEAR` | Year grouping |
+| 103 | `GROUPV2_HOUR_OF_DAY` | Hour of day (0-23) |
+| 104 | `GROUPV2_DAY_OF_WEEK` | Day of week |
+| 200 | `GROUPV2_PRODUCT` | Product identifier |
+| 202 | `GROUPV2_PRODUCT_NAME` | Product name |
+| 204 | `GROUPV2_PRODUCT_DEPARTMENT` | Department |
+| 205 | `GROUPV2_PRODUCT_CLASS` | Product class |
+| 206 | `GROUPV2_PRODUCT_FINELINE` | Fineline |
+| 300 | `GROUPV2_CUSTOMER` | Customer identifier |
+| 301 | `GROUPV2_CUSTOMER_NAME` | Customer name |
+| 400 | `GROUPV2_SALE` | Sale identifier |
+| 401 | `GROUPV2_SALE_CLERK` | Clerk who made the sale |
+| 600 | `GROUPV2_LOCATION` | Location identifier |
+| 900 | `GROUPV2_VENDOR_NAME` | Vendor name |
+
+### Metric Columns (&gt;= 10000)
+
+Metrics are numeric values that can be aggregated:
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 10001 | `GROUPV2_ROW_COUNT` | Count of rows |
+| 10200 | `GROUPV2_PRODUCT_CURRENT_ON_HAND_QTY` | Current on-hand quantity |
+| 10300 | `GROUPV2_CUSTOMER_BALANCE_TOTAL` | Total customer balance |
+| 10403 | `GROUPV2_SALE_TOTAL` | Sale total |
+| 10500 | `GROUPV2_SOLD_PRODUCT_REVENUE_NET` | Net revenue (sales - returns) |
+| 10509 | `GROUPV2_SOLD_PRODUCT_QUANTITY_SOLD_NET` | Net quantity sold |
+| 10510 | `GROUPV2_SOLD_PRODUCT_QUANTITY_SOLD` | Units sold |
+| 10514 | `GROUPV2_SOLD_PRODUCT_COGS` | Cost of goods sold |
+| 10515 | `GROUPV2_SOLD_PRODUCT_GROSS_PROFIT` | Gross profit |
+| 10516 | `GROUPV2_SOLD_PRODUCT_GROSS_MARGIN` | Gross margin percentage |
+
+## Aggregation Types
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 0 | `AGGREGATION_DEFAULT` | SUM for metrics, DISTINCT for labels |
+| 1 | `AGGREGATION_SUM` | Sum of values |
+| 2 | `AGGREGATION_AVERAGE` | Average of values |
+| 3 | `AGGREGATION_MIN` | Minimum value |
+| 4 | `AGGREGATION_MAX` | Maximum value |
+| 5 | `AGGREGATION_DISTINCT` | Unique value or count |
+| 6 | `AGGREGATION_COUNT` | Count of unique values |
+| 7 | `AGGREGATION_EARLIEST` | Earliest date/time |
+| 8 | `AGGREGATION_LATEST` | Latest date/time |
+
+## Filter Attributes
+
+### ID Filters (&lt; 10000)
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 0 | `ATTRIBUTE_LOCATION_ID` | Filter by location UUID |
+| 1 | `ATTRIBUTE_CUSTOMER_ID` | Filter by customer UUID |
+| 2 | `ATTRIBUTE_PRODUCT_ID` | Filter by product UUID |
+| 3 | `ATTRIBUTE_PRODUCT_CATEGORY_ID` | Filter by product category |
+| 4 | `ATTRIBUTE_CLERK_ID` | Filter by clerk/staff UUID |
+| 5 | `ATTRIBUTE_REP_ID` | Filter by sales rep UUID |
+| 7 | `ATTRIBUTE_VENDOR_ID` | Filter by vendor UUID |
+| 13 | `ATTRIBUTE_CUSTOMER_TAG_ID` | Filter by customer tag |
+| 14 | `ATTRIBUTE_PRODUCT_TAG_ID` | Filter by product tag |
+| 15 | `ATTRIBUTE_PRICE_RULE_ID` | Filter by price rule |
+
+### Enum Filters (&gt;= 10000)
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 10000 | `ATTRIBUTE_TRANSACTION_TYPE` | Ledger entry type |
+| 10003 | `ATTRIBUTE_SALE_STATUS` | Sale status (draft, sold, voided, etc.) |
+| 10005 | `ATTRIBUTE_PAYMENT_METHOD` | Payment method |
+| 10006 | `ATTRIBUTE_ORDER_STATUS` | Order status |
+| 10007 | `ATTRIBUTE_TRANSFER_STATUS` | Transfer status |
+| 10008 | `ATTRIBUTE_SALE_TYPE` | Sale vs return |
+
+### Boolean Filters (&gt;= 20000)
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 20000 | `ATTRIBUTE_CUSTOMER_ACTIVE` | Customer is active |
+
+## Cell Types
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 1 | `TYPE_STRING` | Text value |
+| 2 | `TYPE_DECIMAL` | Decimal number |
+| 3 | `TYPE_MONEY` | Money value (in cents) |
+| 4 | `TYPE_FRACTIONAL_MONEY` | Fractional money (for unit costs) |
+| 5 | `TYPE_INT` | Integer value |
+| 6 | `TYPE_PERCENT` | Percentage value |
+
+## Examples
+
+### Sales by Product Category
+
+```json
+{
+  "paramsV2": {
+    "baseData": "BASE_DATA_SOLD_PRODUCTS",
+    "dataSourceRange": {
+      "start": "2024-01-01T00:00:00Z",
+      "end": "2024-12-31T23:59:59Z"
+    },
+    "columns": [
+      { "group": "GROUPV2_PRODUCT_DEPARTMENT" },
+      { "group": "GROUPV2_SOLD_PRODUCT_REVENUE_NET" },
+      { "group": "GROUPV2_SOLD_PRODUCT_GROSS_PROFIT" },
+      { "group": "GROUPV2_SOLD_PRODUCT_GROSS_MARGIN" }
+    ],
+    "sortColumnIndex": 1,
+    "sortOrder": 1
+  }
+}
+```
+
+### Monthly Sales Trend
+
+```json
+{
+  "paramsV2": {
+    "baseData": "BASE_DATA_SOLD_PRODUCTS",
+    "dataSourceRange": {
+      "start": "2024-01-01T00:00:00Z",
+      "end": "2024-12-31T23:59:59Z"
+    },
+    "columns": [
+      { "group": "GROUPV2_MONTH" },
+      { "group": "GROUPV2_SOLD_PRODUCT_REVENUE_NET" }
+    ],
+    "sortColumnIndex": 0,
+    "sortOrder": 2
+  }
+}
+```
+
+### Customer Aging Report
+
+```json
+{
+  "paramsV2": {
+    "baseData": "BASE_DATA_CUSTOMERS",
+    "dataSourceRange": {
+      "start": "2024-01-01T00:00:00Z",
+      "end": "2024-12-31T23:59:59Z"
+    },
+    "columns": [
+      { "group": "GROUPV2_CUSTOMER_NAME" },
+      { "group": "GROUPV2_CUSTOMER_BALANCE_CURRENT" },
+      { "group": "GROUPV2_CUSTOMER_BALANCE_1_30_DAYS" },
+      { "group": "GROUPV2_CUSTOMER_BALANCE_31_60_DAYS" },
+      { "group": "GROUPV2_CUSTOMER_BALANCE_61_PLUS_DAYS" },
+      { "group": "GROUPV2_CUSTOMER_BALANCE_TOTAL" }
+    ],
+    "sortColumnIndex": 5,
+    "sortOrder": 1
+  }
+}
+```
+
+<Note>
+For large reports, consider using pagination or filtering to limit results. Reports are automatically truncated after a certain row count, indicated by `total_rows` in the response.
+</Note>
+
+## See Also
+
+- [GetReportBuilderConfig](/api/analytics/get-report-builder-config) - Get available columns and filters
+

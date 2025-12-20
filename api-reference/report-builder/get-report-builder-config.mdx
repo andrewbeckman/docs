@@ -1,0 +1,135 @@
+---
+title: "GetReportBuilderConfig"
+api: "POST /GetReportBuilderConfig"
+description: "Retrieve the available report configuration options including base data types, columns, filters, and default parameters."
+---
+
+## Overview
+
+`GetReportBuilderConfig` returns the full configuration schema for the report builder. This endpoint provides metadata about all available report types, their supported columns, filters, and default parameters. Use this before calling `GetReportBuilder` to understand what options are available for building reports.
+
+## Request
+
+This endpoint takes no parameters.
+
+<RequestExample>
+```json
+{}
+```
+</RequestExample>
+
+## Response
+
+<ResponseField name="mappings_by_base_data" type="map<int32, Mapping>">
+  A map from `BaseData` enum values to their corresponding configuration mappings.
+  
+  <Expandable title="Mapping properties">
+    <ResponseField name="base_data" type="BaseData">
+      The base data type enum (e.g., `SOLD_PRODUCTS`, `CUSTOMERS`, `TRANSACTIONS`).
+    </ResponseField>
+    <ResponseField name="all_columns" type="GroupV2[]">
+      All available column types for this base data.
+    </ResponseField>
+    <ResponseField name="filters" type="Filter.Attribute[]">
+      Available filter attributes (e.g., `LOCATION_ID`, `CUSTOMER_ID`, `PRODUCT_ID`).
+    </ResponseField>
+    <ResponseField name="label_columns" type="GroupV2[]">
+      Columns that can be used as grouping labels (enum values < 10000).
+    </ResponseField>
+    <ResponseField name="metric_columns" type="GroupV2[]">
+      Columns that represent numeric metrics (enum values >= 10000).
+    </ResponseField>
+    <ResponseField name="default_params" type="ReportParamsV2">
+      The default report parameters for this base data type.
+    </ResponseField>
+    <ResponseField name="is_single_date" type="boolean">
+      Whether this report type uses a single date rather than a date range.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="group_names" type="map<int32, string>">
+  A map from `GroupV2` enum values to their human-readable display names.
+</ResponseField>
+
+<ResponseField name="base_data_names" type="map<int32, string>">
+  A map from `BaseData` enum values to their human-readable display names.
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "mappingsByBaseData": {
+    "3": {
+      "baseData": "BASE_DATA_SOLD_PRODUCTS",
+      "allColumns": [
+        "GROUPV2_PRODUCT",
+        "GROUPV2_CUSTOMER",
+        "GROUPV2_DATE",
+        "GROUPV2_SOLD_PRODUCT_REVENUE_NET",
+        "GROUPV2_SOLD_PRODUCT_GROSS_PROFIT"
+      ],
+      "filters": [
+        "ATTRIBUTE_LOCATION_ID",
+        "ATTRIBUTE_CUSTOMER_ID",
+        "ATTRIBUTE_PRODUCT_ID"
+      ],
+      "labelColumns": [
+        "GROUPV2_PRODUCT",
+        "GROUPV2_CUSTOMER",
+        "GROUPV2_LOCATION"
+      ],
+      "metricColumns": [
+        "GROUPV2_SOLD_PRODUCT_REVENUE_NET",
+        "GROUPV2_SOLD_PRODUCT_GROSS_PROFIT",
+        "GROUPV2_SOLD_PRODUCT_QUANTITY_SOLD"
+      ],
+      "defaultParams": {
+        "baseData": "BASE_DATA_SOLD_PRODUCTS",
+        "columns": [
+          {"group": "GROUPV2_PRODUCT"},
+          {"group": "GROUPV2_SOLD_PRODUCT_REVENUE_NET"}
+        ]
+      },
+      "isSingleDate": false
+    }
+  },
+  "groupNames": {
+    "200": "Product",
+    "300": "Customer",
+    "600": "Location",
+    "10500": "Revenue (Net)"
+  },
+  "baseDataNames": {
+    "1": "Products",
+    "2": "Customers",
+    "3": "Sold Products",
+    "4": "Sales"
+  }
+}
+```
+</ResponseExample>
+
+## BaseData Types
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 1 | `PRODUCTS` | General product information |
+| 2 | `CUSTOMERS` | General customer information |
+| 3 | `SOLD_PRODUCTS` | Sale line items (primary for revenue analytics) |
+| 4 | `SALES` | Sale-level metrics (tax, totals) |
+| 5 | `ORDER_PRODUCTS` | Order line items |
+| 6 | `TRANSFER_PRODUCTS` | Transfer line items |
+| 12 | `TRANSACTIONS` | All transaction types |
+| 15 | `INVENTORY` | Current inventory levels |
+
+## Usage
+
+Use this endpoint to:
+- Populate dropdown options in a report builder UI
+- Validate user-selected columns and filters before submitting a report request
+- Display human-readable names for enum values
+
+<Note>
+This endpoint should be called once and cached, as the configuration rarely changes.
+</Note>
